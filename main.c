@@ -46,9 +46,15 @@
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
 
+I2C_HandleTypeDef hi2c1;
+
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+
+static const uint8_t fullScreenAdd = 0xA4 << 1; // address of write command s.t. full screen on
+static const uint8_t displayOff = 0xAE << 1; // display off
+static const uint8_t displayOn = 0xAF << 1; // display on
 //uint16_t adc_value;
 //char buf[12];
 
@@ -70,7 +76,7 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_ADC1_Init(void);
-
+static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
 void uartPrint(const char *s);
 // Write my Value to terminal
@@ -140,6 +146,9 @@ void processSample(uint16_t sample){
     prevSample = sample;
 }
 
+//I2C: for full display on just to check it works, need: Write_command(0xA4); //Entire Display ON
+// So do 0xA4 << 1 to get 7 bit memory address since also have stop bit
+
 /* USER CODE END 0 */
 
 /**
@@ -151,7 +160,8 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
   //uint16_t adc_value;
-  //char buf[12];
+  char buf[12];
+  HAL_StatusTypeDef ret;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -174,6 +184,7 @@ int main(void)
   MX_GPIO_Init();
   MX_USART2_UART_Init();
   MX_ADC1_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
   uartPrint("Heart rate monitor starting...\r\n");
   /* USER CODE END 2 */
@@ -184,6 +195,9 @@ int main(void)
   //uint8_t msg[] = "Hello UART!\r\n";
   while (1)
   {
+
+	  // ===================ADC section ==========================
+
 	  //HAL_UART_Transmit(&huart2, msg, sizeof(msg)-1, HAL_MAX_DELAY);
 	  //HAL_Delay(1000);
 	  /*
@@ -208,6 +222,10 @@ int main(void)
 
 	  HAL_Delay(10); // ~ 100Hz sampling rate (just under)
 
+	  // ===================I2C section ==========================
+
+	  //buf[0] = displayOn;
+	  //ret = HAL_I2C_Master_Transmit(&hi2c1,);
 
 
 
@@ -338,6 +356,54 @@ static void MX_ADC1_Init(void)
   /* USER CODE BEGIN ADC1_Init 2 */
 
   /* USER CODE END ADC1_Init 2 */
+
+}
+
+/**
+  * @brief I2C1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C1_Init(void)
+{
+
+  /* USER CODE BEGIN I2C1_Init 0 */
+
+  /* USER CODE END I2C1_Init 0 */
+
+  /* USER CODE BEGIN I2C1_Init 1 */
+
+  /* USER CODE END I2C1_Init 1 */
+  hi2c1.Instance = I2C1;
+  hi2c1.Init.Timing = 0x0060112F;
+  hi2c1.Init.OwnAddress1 = 0;
+  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c1.Init.OwnAddress2 = 0;
+  hi2c1.Init.OwnAddress2Masks = I2C_OA2_NOMASK;
+  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Analogue filter
+  */
+  if (HAL_I2CEx_ConfigAnalogFilter(&hi2c1, I2C_ANALOGFILTER_ENABLE) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Digital filter
+  */
+  if (HAL_I2CEx_ConfigDigitalFilter(&hi2c1, 0) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C1_Init 2 */
+
+  /* USER CODE END I2C1_Init 2 */
 
 }
 
