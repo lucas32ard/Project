@@ -73,7 +73,8 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+  uint16_t adc_value;
+  char buf[12];
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -102,7 +103,7 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  HAL_ADC_Start(&hadc1);
+
   //uint8_t msg[] = "Hello UART!\r\n";
   while (1)
   {
@@ -115,7 +116,10 @@ int main(void)
 		  HAL_UART_Transmit(&huart2, (uint8_t*)buf, strlen(buf), HAL_MAX_DELAY);
 	  }
 	  */
+	  HAL_ADC_Start(&hadc1);
+	  HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
 	  adc_value = HAL_ADC_GetValue(&hadc1);
+
 	  sprintf(buf,"%u\r\n",adc_value);
 	  HAL_UART_Transmit(&huart2, (uint8_t*)buf, strlen(buf), HAL_MAX_DELAY);
 	  HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_3);
