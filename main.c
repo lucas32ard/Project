@@ -33,8 +33,9 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-uint16_t adc_value;
-char buf[12];
+#define MA_Window 10
+
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -48,6 +49,19 @@ ADC_HandleTypeDef hadc1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+//uint16_t adc_value;
+//char buf[12];
+
+uint32_t prevSample = 0;
+uint32_t riseCount = 0;
+uint8_t beatDetected = 0;
+
+uint32_t lastBeatTime = 0;
+uint32_t ibiBuffer[MA_Window] = {0};
+uint8_t ibiIndex = 0;
+uint8_t ibiCount = 0;
+
+char msg[64];
 
 /* USER CODE END PV */
 
@@ -56,12 +70,75 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_ADC1_Init(void);
+
 /* USER CODE BEGIN PFP */
+void uartPrint(const char *s);
+// Write my Value to terminal
+uint16_t readADC(void);
+// read the incoming sensor value from ADC
+void processSample(uint16_t sample);
+// Process the incoming adc value and calculate the heart rate (also incs MA filtering)
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void uartPrint(const char *s){
+	if(strlen(s)<64){
+		HAL_UART_Transmit(&huart2, (uint8_t*)s, strlen(s), HAL_MAX_DELAY);
+	} else{
+		char errorMsg[64];
+		sprintf(errorMsg, "Error: String too long"); // ensure not to overload uart buffer
+		HAL_UART_Transmit(&huart2, (uint8_t*)errorMsg, strlen(errorMsg), HAL_MAX_DELAY);
+	}
+}
+
+uint16_t readADC(void){
+	HAL_ADC_Start(&hadc1);
+	HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+	return HAL_ADC_GetValue(&hadc1);
+}
+
+void processSample(uint16_t sample){
+	uint32_t currentTime = HAL_GetTick();
+
+	//like the DF Robot library, use rising edge detection w/ 4 samples to look for heartbeat:
+
+	if (sample>prevSample){
+		riseCount++;
+		if(riseCount>=4 && !beatDetected){
+			beatDetected = 1; // detect a beat
+
+
+			if(lastBeatTime>0){
+				uint32_t interval = currentTime - lastBeatTime;
+				lastBeatTime = currentTime;
+
+				//Store in MA buffer
+				ibiBuffer[ibiIndex++] = interval;
+				if (ibiIndex >= MA_Window) ibiIndex = 0;
+				if (ibiCount < MA_Window) ibiCount++;
+
+				uint32_t sum = 0;
+				for (uint8_t i=0; i<ibiCount; i++) sum += ibiBuffer[i];
+				uint32_t avgIBI = sum / ibiCount;
+				uint32_t bpm = 60000 / avgIBI;
+
+				sprintf(msg, "Heartbeat detected! BPM = %lu\r\n", bpm);
+				uartPrint(msg);
+			} else {
+				lastBeatTime = currentTime; // first detection
+			}
+		}
+
+	} else {
+        // Reset rise count once slope ends
+        riseCount = 0;
+        beatDetected = 0;
+    }
+
+    prevSample = sample;
+}
 
 /* USER CODE END 0 */
 
@@ -73,8 +150,8 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-  uint16_t adc_value;
-  char buf[12];
+  //uint16_t adc_value;
+  //char buf[12];
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -98,7 +175,7 @@ int main(void)
   MX_USART2_UART_Init();
   MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
-
+  uartPrint("Heart rate monitor starting...\r\n");
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -116,6 +193,7 @@ int main(void)
 		  HAL_UART_Transmit(&huart2, (uint8_t*)buf, strlen(buf), HAL_MAX_DELAY);
 	  }
 	  */
+	  /*
 	  HAL_ADC_Start(&hadc1);
 	  HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
 	  adc_value = HAL_ADC_GetValue(&hadc1);
@@ -124,6 +202,11 @@ int main(void)
 	  HAL_UART_Transmit(&huart2, (uint8_t*)buf, strlen(buf), HAL_MAX_DELAY);
 	  HAL_GPIO_TogglePin(GPIOB,GPIO_PIN_3);
 	  HAL_Delay(50);
+	  */
+	  uint16_t adcValue = readADC();
+	  processSample(adcValue);
+
+	  HAL_Delay(10); // ~ 100Hz sampling rate (just under)
 
 
 
